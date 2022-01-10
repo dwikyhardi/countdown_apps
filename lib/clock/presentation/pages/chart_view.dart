@@ -1,13 +1,13 @@
-import 'package:countdown_apps/clock/domain/entities/alarm.dart';
+import 'package:countdown_apps/clock/domain/entities/count_down.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class ChartView extends StatefulWidget {
-  final List<Alarm> listAlarm;
+  final List<CountDown> listCountDown;
 
-  const ChartView({Key? key, required this.listAlarm}) : super(key: key);
+  const ChartView({Key? key, required this.listCountDown}) : super(key: key);
 
   @override
   State<ChartView> createState() => _ChartViewState();
@@ -16,6 +16,8 @@ class ChartView extends StatefulWidget {
 class _ChartViewState extends State<ChartView> {
   final DateFormat formatter = DateFormat('HH:mm');
 
+  final Color barBackgroundColor = const Color(0xff72d8bf);
+  int touchedIndex = -1;
   final List<Color> gradientColors = [
     const Color(0xFF008c85),
     const Color(0xFF67f0e7)
@@ -46,8 +48,8 @@ class _ChartViewState extends State<ChartView> {
             child: Container(
               padding: const EdgeInsets.only(
                   right: 30.0, left: 12.0, top: 24, bottom: 12),
-              child: LineChart(
-                LineChartData(
+              child: BarChart(
+                BarChartData(
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: true,
@@ -78,8 +80,9 @@ class _ChartViewState extends State<ChartView> {
                           fontSize: 11),
                       getTitles: (value) {
                         return formatter.format(
-                            DateTime.fromMillisecondsSinceEpoch(
-                                widget.listAlarm[value.toInt()].alarmTimeInMs));
+                            DateTime.fromMillisecondsSinceEpoch(widget
+                                .listCountDown[value.toInt()]
+                                .countDownTimeInMs));
                       },
                       margin: 5,
                     ),
@@ -102,28 +105,33 @@ class _ChartViewState extends State<ChartView> {
                       show: true,
                       border:
                           Border.all(color: const Color(0xff37434d), width: 1)),
-                  minX: 0,
-                  maxX: widget.listAlarm.length.toDouble() - 1,
+                  // minX: 0,
+                  // maxX: widget.listCountDown.length.toDouble() - 1,
                   minY: 0,
                   maxY: _maxY,
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: chartSpot,
-                      isCurved: true,
-                      colors: gradientColors,
-                      barWidth: 5,
-                      isStrokeCapRound: true,
-                      dotData: FlDotData(
-                        show: true,
-                      ),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        colors: gradientColors
-                            .map((color) => color.withOpacity(0.3))
-                            .toList(),
-                      ),
-                    ),
-                  ],
+                  barTouchData: BarTouchData(
+                    enabled: false,
+                    touchCallback: (FlTouchEvent event, barTouchResponse) {
+                      setState(() {
+                        if (!event.isInterestedForInteractions ||
+                            barTouchResponse == null ||
+                            barTouchResponse.spot == null) {
+                          touchedIndex = -1;
+                          return;
+                        }
+                        touchedIndex =
+                            barTouchResponse.spot!.touchedBarGroupIndex;
+                      });
+                    },
+                  ),
+                  barGroups: List.generate(chartSpot.length, (index) {
+                    var data = chartSpot[index];
+                    return makeGroupData(
+                      data.x.toInt(),
+                      data.y,
+                      isTouched: index == touchedIndex,
+                    );
+                  }),
                 ),
               ),
             ),
@@ -133,11 +141,41 @@ class _ChartViewState extends State<ChartView> {
     );
   }
 
+  BarChartGroupData makeGroupData(
+    int x,
+    double y, {
+    bool isTouched = false,
+    Color? barColor,
+    double width = 22,
+    List<int> showTooltips = const [],
+  }) {
+    return BarChartGroupData(
+      x: x,
+      barRods: [
+        BarChartRodData(
+          y: isTouched ? y + 1 : y,
+          colors:
+              isTouched ? [Colors.yellow] : [barColor ?? barBackgroundColor],
+          width: width,
+          borderSide: isTouched
+              ? BorderSide(color: Colors.yellow.shade900, width: 1)
+              : const BorderSide(color: Colors.white, width: 0),
+          // backDrawRodData: BackgroundBarChartRodData(
+          //   show: true,
+          //   y: _maxY,
+          //   colors: [barBackgroundColor],
+          // ),
+        ),
+      ],
+      showingTooltipIndicators: showTooltips,
+    );
+  }
+
   void _setChartSpot() {
-    for (int i = 0; i < widget.listAlarm.length; i++) {
-      Alarm alarm = widget.listAlarm[i];
-      double stopTime =
-          alarm.timeToStopAlarm.toDouble() - alarm.alarmTimeInMs.toDouble();
+    for (int i = 0; i < widget.listCountDown.length; i++) {
+      CountDown countDown = widget.listCountDown[i];
+      double stopTime = countDown.timeToStopCountDown.toDouble() -
+          countDown.countDownTimeInMs.toDouble();
       if (stopTime < 0) {
         stopTime = 0;
       }
@@ -170,7 +208,7 @@ class _ChartViewState extends State<ChartView> {
           List.generate(_maxY ~/ 5, (index) => (index + 1) * 5),
           List.generate(_maxY ~/ 5, (index) => '${(index + 1) * 5}s'),
         );
-      } else if (_maxY > 61  && _maxY <= 1000) {
+      } else if (_maxY > 61 && _maxY <= 1000) {
         sideTitle = Map.fromIterables(
           List.generate(_maxY ~/ 20, (index) => (index + 1) * 20),
           List.generate(_maxY ~/ 20, (index) => '${(index + 1) * 20}s'),

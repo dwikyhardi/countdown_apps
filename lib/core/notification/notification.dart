@@ -1,8 +1,8 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:countdown_apps/core/di/injection_container.dart';
 import 'package:countdown_apps/clock/presentation/bloc/clock_bloc.dart';
+import 'package:countdown_apps/core/di/injection_container.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:nav_router/nav_router.dart';
@@ -13,8 +13,8 @@ class Notification {
   AndroidNotificationDetails androidPlatformChannelSpecifics =
       AndroidNotificationDetails(
     'Clock_notification_channel',
-    'ClockAlarm',
-    channelDescription: 'ClockAlarm notification channel',
+    'ClockCountDown',
+    channelDescription: 'ClockCountDown notification channel',
     importance: Importance.max,
     fullScreenIntent: false,
     visibility: NotificationVisibility.public,
@@ -26,7 +26,7 @@ class Notification {
     enableLights: true,
     enableVibration: true,
     vibrationPattern: Int64List.fromList([0, 500, 100, 150, 50, 150, 50, 500]),
-    groupKey: 'ClockAlarm',
+    groupKey: 'ClockCountDown',
     autoCancel: true,
     playSound: true,
     sound: const RawResourceAndroidNotificationSound('ringtone'),
@@ -78,53 +78,16 @@ class Notification {
 
   Future onSelectNotification(String? remoteMessage) async {
     Map<String, dynamic> payload = jsonDecode(remoteMessage ?? '');
-    sl<ClockBloc>().add(StopAlarmEvent(
-        payload['alarmId'], DateTime.now().millisecondsSinceEpoch));
-    sl<ClockBloc>().add(OpenChartEvent(navGK.currentState!.context));
-  }
-
-  Future<dynamic> showNotification(
-    Map<String, dynamic> message,
-  ) async {
-    //? Set Notification Variabel
-    AndroidInitializationSettings initializationSettingsAndroid =
-        const AndroidInitializationSettings('mipmap/ic_launcher');
-
-    IOSInitializationSettings initializationSettingsIOS =
-        IOSInitializationSettings(
-            requestSoundPermission: true,
-            requestBadgePermission: true,
-            requestAlertPermission: true,
-            onDidReceiveLocalNotification: onDidReceiveLocalNotification,
-            defaultPresentAlert: true,
-            defaultPresentBadge: true,
-            defaultPresentSound: true);
-
-    InitializationSettings initializationSettings = InitializationSettings(
-        android: initializationSettingsAndroid, iOS: initializationSettingsIOS);
-    await sl<FlutterLocalNotificationsPlugin>().initialize(
-        initializationSettings,
-        onSelectNotification: onSelectNotification);
-
-    NotificationDetails platformChannelSpecifics = NotificationDetails(
-        android: androidPlatformChannelSpecifics,
-        iOS: iOSPlatformChannelSpecifics);
-
-    await sl<FlutterLocalNotificationsPlugin>().show(
-      message['alarmId'],
-      message['data_title'],
-      message['data_body'],
-      platformChannelSpecifics,
-    );
+    sl<ClockBloc>().add(StopCountDownEvent(payload['countDownId'],
+        DateTime.now().millisecondsSinceEpoch, 0, null));
   }
 
   Future<dynamic> scheduleNotification({
-    required int alarmId,
-    required int alarmTimeInMs,
+    required int countDownId,
+    required int countDownTimeInMs,
   }) async {
     tz.initializeTimeZones();
     tz.setLocalLocation(tz.getLocation('Asia/Jakarta'));
-    //? Set Notification Variabel
     AndroidInitializationSettings initializationSettingsAndroid =
         const AndroidInitializationSettings('mipmap/ic_launcher');
 
@@ -144,17 +107,20 @@ class Notification {
         initializationSettings,
         onSelectNotification: onSelectNotification);
 
+    debugPrint(
+        'Schedule Notification ========== ${tz.TZDateTime.fromMillisecondsSinceEpoch(tz.getLocation('Asia/Jakarta'), countDownTimeInMs).toIso8601String()}');
+
     await sl<FlutterLocalNotificationsPlugin>().zonedSchedule(
-      alarmId,
-      '🔔🔔🔔 Your Alarm is Ringing 🔔🔔🔔',
+      countDownId,
+      '🔔🔔🔔 Your CountDown Is Off 🔔🔔🔔',
       'Click this to turn it off',
       tz.TZDateTime.fromMillisecondsSinceEpoch(
-          tz.getLocation('Asia/Jakarta'), alarmTimeInMs),
+          tz.getLocation('Asia/Jakarta'), countDownTimeInMs),
       NotificationDetails(
         android: androidPlatformChannelSpecifics,
         iOS: iOSPlatformChannelSpecifics,
       ),
-      payload: jsonEncode({'alarmId': alarmId}),
+      payload: jsonEncode({'countDownId': countDownId}),
       androidAllowWhileIdle: true,
       uiLocalNotificationDateInterpretation:
           UILocalNotificationDateInterpretation.absoluteTime,

@@ -2,57 +2,63 @@ part of 'clock_bloc.dart';
 
 abstract class ClockEvent extends Equatable {
   const ClockEvent();
-}
-
-class AddAlarmEvent extends ClockEvent {
-  final int alarmTimeInMs;
-
-  const AddAlarmEvent(this.alarmTimeInMs);
 
   @override
-  List<Object> get props => [alarmTimeInMs];
+  List<Object?> get props => [];
 }
 
-class RemoveAlarmEvent extends ClockEvent {
-  final int alarmId;
+class StartCountDownEvent extends ClockEvent {
+  final int countDownTimeInMs;
+  final int remainingCountDownTimeInMs;
+  final int? countDownId;
+  final StreamController<CountDownModels?> streamController;
 
-  const RemoveAlarmEvent(this.alarmId);
+  const StartCountDownEvent(this.countDownTimeInMs,
+      this.remainingCountDownTimeInMs, this.streamController, this.countDownId);
 
   @override
-  List<Object> get props => [alarmId];
+  List<Object> get props =>
+      [countDownTimeInMs, remainingCountDownTimeInMs, streamController];
 }
 
-class StopAlarmEvent extends ClockEvent {
-  final int alarmId;
-  final int timeToStopAlarm;
+class RemoveCountDownEvent extends ClockEvent {
+  final int countDownId;
 
-  const StopAlarmEvent(this.alarmId, this.timeToStopAlarm);
+  const RemoveCountDownEvent(this.countDownId);
 
   @override
-  List<Object> get props => [alarmId, timeToStopAlarm];
+  List<Object> get props => [countDownId];
 }
 
-class GetAlarmEvent extends ClockEvent {
-  final int alarmId;
+class StopCountDownEvent extends ClockEvent {
+  final int countDownId;
+  final int timeToStopCountDown;
+  final int remainingCountDownTimeInMs;
+  final StreamController<CountDownModels?>? streamController;
 
-  const GetAlarmEvent(this.alarmId);
+  const StopCountDownEvent(this.countDownId, this.timeToStopCountDown,
+      this.remainingCountDownTimeInMs, this.streamController);
 
   @override
-  List<Object> get props => [alarmId];
+  List<Object?> get props =>
+      [
+        countDownId,
+        timeToStopCountDown,
+        remainingCountDownTimeInMs,
+        streamController,
+      ];
 }
 
-class SetIsActiveAlarmEvent extends ClockEvent {
-  final int alarmId;
-  final bool isActive;
+class GetCountDownEvent extends ClockEvent {
+  final int countDownId;
 
-  const SetIsActiveAlarmEvent(this.alarmId, this.isActive);
+  const GetCountDownEvent(this.countDownId);
 
   @override
-  List<Object> get props => [alarmId,isActive];
+  List<Object> get props => [countDownId];
 }
 
 class OpenChartEvent extends ClockEvent {
-
   final BuildContext context;
 
   const OpenChartEvent(this.context);

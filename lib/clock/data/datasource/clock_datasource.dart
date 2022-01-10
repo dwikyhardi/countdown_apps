@@ -1,25 +1,35 @@
+import 'dart:async';
+
+import 'package:countdown_apps/clock/data/model/count_down_model.dart';
+import 'package:countdown_apps/clock/data/table/count_down_table.dart';
+import 'package:countdown_apps/clock/domain/entities/count_down.dart';
 import 'package:countdown_apps/core/di/injection_container.dart';
 import 'package:countdown_apps/core/error/exception.dart';
 import 'package:countdown_apps/core/notification/notification.dart' as notif;
-import 'package:countdown_apps/clock/data/model/alarm_model.dart';
-import 'package:countdown_apps/clock/data/table/alarm_table.dart';
-import 'package:countdown_apps/clock/domain/entities/alarm.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 abstract class ClockDatasource {
-  Future<int> addAlarm({required int alarmTimeInMs});
+  Future<int> startCountDown({
+    required int countDownTimeInMs,
+    required int? countDownId,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?> streamController,
+  });
 
-  Future<void> deleteAlarm({required int alarmId});
+  Future<void> deleteCountDown({required int countDownId});
 
-  Future<Alarm> getAlarm({required int alarmId});
+  Future<CountDown> getCountDown({required int countDownId});
 
-  Future<bool> stopAlarm({required int alarmId, required int timeToStopAlarm});
+  Future<bool> stopCountDown({
+    required int countDownId,
+    required int timeToStopCountDown,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?>? streamController,
+  });
 
-  Future<bool> setIsActiveAlarm({required int alarmId, required bool isActive});
+  Stream<List<CountDown>> streamCountDown();
 
-  Stream<List<Alarm>> streamAlarm();
-
-  Future<List<Alarm>> getAllAlarm();
+  Future<List<CountDown>> getAllCountDown();
 }
 
 class ClockDataSourceImpl implements ClockDatasource {
@@ -29,87 +39,81 @@ class ClockDataSourceImpl implements ClockDatasource {
   ClockDataSourceImpl(this.database, this.notificationsPlugin);
 
   @override
-  Future<int> addAlarm({required int alarmTimeInMs}) async {
+  Future<int> startCountDown({
+    required int? countDownId,
+    required int countDownTimeInMs,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?> streamController,
+  }) async {
     try {
-      return await database.appDao.saveAlarm(AlarmModels(
-          alarmTimeInMs: alarmTimeInMs,
-          timeToStopAlarm: 0,
+      return await database.appDao.saveCountDown(
+        CountDownModels(
+          countDownId: countDownId,
+          remainingCountDownTimeInMs: remainingCountDownTimeInMs,
+          countDownTimeInMs: countDownTimeInMs,
+          timeToStopCountDown: 0,
           isStop: false,
-          isActive: true));
+          isActive: true,
+        ),
+        streamController,
+      );
     } on Exception {
       throw DatabaseException();
     }
   }
 
   @override
-  Future<Alarm> getAlarm({required int alarmId}) async {
+  Future<CountDown> getCountDown({required int countDownId}) async {
     try {
-      return await database.appDao.getAlarm(alarmId);
+      return await database.appDao.getCountDown(countDownId);
     } on Exception {
       throw DatabaseException();
     }
   }
 
   @override
-  Future<void> deleteAlarm({required int alarmId}) async {
+  Future<void> deleteCountDown({required int countDownId}) async {
     try {
-      await database.appDao.deleteAlarm(alarmId);
+      await database.appDao.deleteCountDown(countDownId);
     } on Exception {
       throw DatabaseException();
     }
   }
 
   @override
-  Stream<List<Alarm>> streamAlarm() async* {
+  Stream<List<CountDown>> streamCountDown() async* {
     try {
-      yield* database.appDao.streamAlarms();
+      yield* database.appDao.streamCountDowns();
     } on Exception {
       throw DatabaseException();
     }
   }
 
   @override
-  Future<bool> stopAlarm(
-      {required int alarmId, required int timeToStopAlarm}) async {
+  Future<bool> stopCountDown({
+    required int countDownId,
+    required int timeToStopCountDown,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?>? streamController,
+  }) async {
     try {
-      return await database.appDao.stopAlarm(alarmId, timeToStopAlarm);
+      var result = await database.appDao.stopCountDown(
+        countDownId,
+        timeToStopCountDown,
+        remainingCountDownTimeInMs,
+        streamController,
+      );
+      await sl<FlutterLocalNotificationsPlugin>().cancel(countDownId);
+      return result;
     } on Exception {
       throw DatabaseException();
     }
   }
 
   @override
-  Future<bool> setIsActiveAlarm(
-      {required int alarmId, required bool isActive}) async {
+  Future<List<CountDown>> getAllCountDown() async {
     try {
-      int? newAlarmTimeInMs;
-      if (isActive) {
-        await getAlarm(alarmId: alarmId).then((value) async {
-          DateTime alarmTime =
-              DateTime.fromMillisecondsSinceEpoch(value.alarmTimeInMs);
-          if (alarmTime.isAfter(DateTime.now())) {
-            await sl<notif.Notification>().scheduleNotification(
-                alarmId: alarmId, alarmTimeInMs: value.alarmTimeInMs);
-          } else {
-            newAlarmTimeInMs =
-                alarmTime.add(const Duration(days: 1)).millisecondsSinceEpoch;
-          }
-        });
-      } else if (!isActive) {
-        await sl<FlutterLocalNotificationsPlugin>().cancel(alarmId);
-      }
-
-      return await database.appDao
-          .setIsActiveAlarm(alarmId, isActive, newAlarmTimeInMs);
-    } on Exception {
-      throw DatabaseException();
-    }
-  }
-
-  @override
-  Future<List<Alarm>> getAllAlarm() async {
-    try {
-      return await database.appDao.getAllAlarm();
+      return await database.appDao.getAllCountDown();
     } on Exception {
       throw DatabaseException();
     }

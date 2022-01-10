@@ -1,12 +1,13 @@
 import 'dart:async';
 
+import 'package:countdown_apps/clock/data/datasource/clock_datasource.dart';
+import 'package:countdown_apps/clock/data/model/count_down_model.dart';
+import 'package:countdown_apps/clock/domain/entities/count_down.dart';
+import 'package:countdown_apps/clock/domain/repositories/clock_repository.dart';
 import 'package:countdown_apps/core/di/injection_container.dart';
 import 'package:countdown_apps/core/error/exception.dart';
 import 'package:countdown_apps/core/error/failure.dart';
 import 'package:countdown_apps/core/notification/notification.dart' as notif;
-import 'package:countdown_apps/clock/data/datasource/clock_datasource.dart';
-import 'package:countdown_apps/clock/domain/entities/alarm.dart';
-import 'package:countdown_apps/clock/domain/repositories/clock_repository.dart';
 import 'package:dartz/dartz.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -16,13 +17,24 @@ class ClockRepositoryImpl implements ClockRepository {
   ClockRepositoryImpl(this.datasource);
 
   @override
-  Future<Either<Failure, Alarm>> addAlarm({required int alarmTimeInMs}) async {
+  Future<Either<Failure, CountDown>> startCountDown({
+    required int countDownTimeInMs,
+    required int? countDownId,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?> streamController,
+  }) async {
     try {
-      var id = await datasource.addAlarm(alarmTimeInMs: alarmTimeInMs);
-      Alarm result = await datasource.getAlarm(alarmId: id);
+      var id = await datasource.startCountDown(
+        countDownId: countDownId,
+        countDownTimeInMs: countDownTimeInMs,
+        remainingCountDownTimeInMs: remainingCountDownTimeInMs,
+        streamController: streamController,
+      );
+      CountDown result = await datasource.getCountDown(countDownId: id);
 
       sl<notif.Notification>().scheduleNotification(
-          alarmId: result.alarmId ?? 0, alarmTimeInMs: result.alarmTimeInMs);
+          countDownId: result.countDownId ?? 0,
+          countDownTimeInMs: result.countDownTimeInMs);
 
       return Right(result);
     } on DatabaseException {
@@ -31,11 +43,19 @@ class ClockRepositoryImpl implements ClockRepository {
   }
 
   @override
-  Future<Either<Failure, bool>> stopAlarm(
-      {required int alarmId, required int timeToStopAlarm}) async {
+  Future<Either<Failure, bool>> stopCountDown({
+    required int countDownId,
+    required int timeToStopCountDown,
+    required int remainingCountDownTimeInMs,
+    required StreamController<CountDownModels?>? streamController,
+  }) async {
     try {
-      var result = await datasource.stopAlarm(
-          alarmId: alarmId, timeToStopAlarm: timeToStopAlarm);
+      var result = await datasource.stopCountDown(
+        countDownId: countDownId,
+        timeToStopCountDown: timeToStopCountDown,
+        remainingCountDownTimeInMs: remainingCountDownTimeInMs,
+        streamController: streamController,
+      );
       return Right(result);
     } on DatabaseException {
       return Left(DatabaseFailure());
@@ -43,9 +63,10 @@ class ClockRepositoryImpl implements ClockRepository {
   }
 
   @override
-  Future<Either<Failure, Alarm>> getAlarm({required int alarmId}) async {
+  Future<Either<Failure, CountDown>> getCountDown(
+      {required int countDownId}) async {
     try {
-      var result = await datasource.getAlarm(alarmId: alarmId);
+      var result = await datasource.getCountDown(countDownId: countDownId);
       return Right(result);
     } on DatabaseException {
       return Left(DatabaseFailure());
@@ -53,10 +74,11 @@ class ClockRepositoryImpl implements ClockRepository {
   }
 
   @override
-  Future<Either<Failure, bool>> removeAlarm({required int alarmId}) async {
+  Future<Either<Failure, bool>> removeCountDown(
+      {required int countDownId}) async {
     try {
-      await sl<FlutterLocalNotificationsPlugin>().cancel(alarmId);
-      await datasource.deleteAlarm(alarmId: alarmId);
+      await sl<FlutterLocalNotificationsPlugin>().cancel(countDownId);
+      await datasource.deleteCountDown(countDownId: countDownId);
       return const Right(true);
     } on DatabaseException {
       return Left(DatabaseFailure());
@@ -64,42 +86,28 @@ class ClockRepositoryImpl implements ClockRepository {
   }
 
   @override
-  Stream<Either<Failure, List<Alarm>>> streamAlarm() async* {
+  Stream<Either<Failure, List<CountDown>>> streamCountDown() async* {
     try {
-      StreamTransformer<List<Alarm>, Either<Failure, List<Alarm>>> transformer =
-          StreamTransformer.fromHandlers(handleData: (List<Alarm> data,
-              EventSink<Either<Failure, List<Alarm>>> output) {
+      StreamTransformer<List<CountDown>, Either<Failure, List<CountDown>>>
+          transformer = StreamTransformer.fromHandlers(handleData:
+              (List<CountDown> data,
+                  EventSink<Either<Failure, List<CountDown>>> output) {
         if (data.isNotEmpty) {
           output.add(Right(data));
         } else {
-          output.add(Left(DatabaseFailure()));
+          output.add(const Right([]));
         }
       });
-      yield* datasource.streamAlarm().transform(transformer);
+      yield* datasource.streamCountDown().transform(transformer);
     } on DatabaseException {
       yield Left(DatabaseFailure());
     }
   }
 
   @override
-  Future<Either<Failure, bool>> setActiveAlarm({
-    required int alarmId,
-    required bool isActive,
-  }) async {
+  Future<Either<Failure, List<CountDown>>> getAllCountDown() async {
     try {
-      var result = await datasource.setIsActiveAlarm(
-          alarmId: alarmId, isActive: isActive);
-      return Right(result);
-    } on DatabaseException {
-      return Left(DatabaseFailure());
-    }
-  }
-
-  @override
-  Future<Either<Failure, List<Alarm>>> getAllAlarm() async {
-    try {
-      var result = await datasource.getAllAlarm();
-      return Right(result);
+      return Right(await datasource.getAllCountDown());
     } on DatabaseException {
       return Left(DatabaseFailure());
     }
